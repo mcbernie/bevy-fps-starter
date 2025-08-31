@@ -11,6 +11,9 @@ impl Plugin for GameUIPlugin {
                 update_crosshair,
                 handle_ui_input,
                 update_debug_info,
+                update_health_display,
+                update_ammo_display,
+                update_weapon_display,
             ));
     }
 }
@@ -23,6 +26,15 @@ pub struct Crosshair;
 
 #[derive(Component)]
 pub struct DebugInfo;
+
+#[derive(Component)]
+pub struct HealthDisplay;
+
+#[derive(Component)]
+pub struct AmmoDisplay;
+
+#[derive(Component)]
+pub struct WeaponDisplay;
 
 #[derive(Resource)]
 pub struct UISettings {
@@ -44,7 +56,7 @@ impl Default for UISettings {
 fn setup_ui(mut commands: Commands) {
     commands.insert_resource(UISettings::default());
     
-    // Simple UI - just crosshair for now
+    // Main UI container
     commands
         .spawn(Node {
             width: Val::Percent(100.0),
@@ -95,6 +107,58 @@ fn setup_ui(mut commands: Commands) {
                     BackgroundColor(Color::srgb(1.0, 1.0, 1.0)),
                 ));
             });
+
+            // Health display (bottom left)
+            parent.spawn((
+                Text::new("Health: 100/100"),
+                Node {
+                    position_type: PositionType::Absolute,
+                    bottom: Val::Px(20.0),
+                    left: Val::Px(20.0),
+                    ..default()
+                },
+                TextColor(Color::srgb(0.8, 0.2, 0.2)),
+                TextFont {
+                    font_size: 24.0,
+                    ..default()
+                },
+                HealthDisplay,
+            ));
+
+            // Ammo display (bottom right)
+            parent.spawn((
+                Text::new("Ammo: -/-"),
+                Node {
+                    position_type: PositionType::Absolute,
+                    bottom: Val::Px(20.0),
+                    right: Val::Px(20.0),
+                    ..default()
+                },
+                TextColor(Color::srgb(0.8, 0.8, 0.2)),
+                TextFont {
+                    font_size: 24.0,
+                    ..default()
+                },
+                AmmoDisplay,
+            ));
+
+            // Weapon display (bottom center)
+            parent.spawn((
+                Text::new("No Weapon"),
+                Node {
+                    position_type: PositionType::Absolute,
+                    bottom: Val::Px(60.0),
+                    left: Val::Percent(50.0),
+                    margin: UiRect::new(Val::Px(-75.0), Val::Px(0.0), Val::Px(0.0), Val::Px(0.0)),
+                    ..default()
+                },
+                TextColor(Color::srgb(0.2, 0.8, 0.2)),
+                TextFont {
+                    font_size: 20.0,
+                    ..default()
+                },
+                WeaponDisplay,
+            ));
         });
 }
 
@@ -133,6 +197,57 @@ fn handle_ui_input(
     
     if keyboard_input.just_pressed(KeyCode::F12) {
         ui_settings.show_fps = !ui_settings.show_fps;
+    }
+}
+
+fn update_health_display(
+    player_query: Query<&crate::interaction::PlayerHealth, With<crate::fps_controller::FpsController>>,
+    mut health_display_query: Query<&mut Text, With<HealthDisplay>>,
+) {
+    for player_health in player_query.iter() {
+        for mut text in health_display_query.iter_mut() {
+            text.0 = format!("Health: {:.0}/{:.0}", player_health.current, player_health.maximum);
+        }
+    }
+}
+
+fn update_ammo_display(
+    player_query: Query<&crate::weapons::PlayerInventory, With<crate::fps_controller::FpsController>>,
+    weapon_query: Query<&crate::weapons::Weapon>,
+    mut ammo_display_query: Query<&mut Text, With<AmmoDisplay>>,
+) {
+    for inventory in player_query.iter() {
+        for mut text in ammo_display_query.iter_mut() {
+            if let Some(weapon_entity) = inventory.held_weapon {
+                if let Ok(weapon) = weapon_query.get(weapon_entity) {
+                    text.0 = format!("Ammo: {}/{}", weapon.ammo, weapon.max_ammo);
+                } else {
+                    text.0 = "Ammo: -/-".to_string();
+                }
+            } else {
+                text.0 = "Ammo: -/-".to_string();
+            }
+        }
+    }
+}
+
+fn update_weapon_display(
+    player_query: Query<&crate::weapons::PlayerInventory, With<crate::fps_controller::FpsController>>,
+    weapon_query: Query<&crate::weapons::Weapon>,
+    mut weapon_display_query: Query<&mut Text, With<WeaponDisplay>>,
+) {
+    for inventory in player_query.iter() {
+        for mut text in weapon_display_query.iter_mut() {
+            if let Some(weapon_entity) = inventory.held_weapon {
+                if let Ok(weapon) = weapon_query.get(weapon_entity) {
+                    text.0 = weapon.name.clone();
+                } else {
+                    text.0 = "No Weapon".to_string();
+                }
+            } else {
+                text.0 = "No Weapon".to_string();
+            }
+        }
     }
 }
 

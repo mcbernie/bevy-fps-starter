@@ -6,6 +6,8 @@ mod physics;
 mod multiplayer;
 mod maps;
 mod ui;
+mod weapons;
+mod interaction;
 
 use fps_controller::FpsControllerPlugin;
 use lighting::LightingPlugin;
@@ -13,6 +15,8 @@ use physics::PhysicsPlugin;
 use multiplayer::MultiplayerPlugin;
 use maps::MapLoadingPlugin;
 use ui::GameUIPlugin;
+use weapons::WeaponPlugin;
+use interaction::InteractionPlugin;
 
 fn main() {
     let mut app = App::new();
@@ -35,6 +39,8 @@ fn main() {
             MapLoadingPlugin,
             MultiplayerPlugin,
             GameUIPlugin,
+            WeaponPlugin,
+            InteractionPlugin,
         ))
         .add_systems(Startup, setup_game)
         .add_systems(Update, handle_input);

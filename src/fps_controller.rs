@@ -46,15 +46,15 @@ fn setup_fps_controller(
     mut windows: Query<&mut Window>,
 ) {
     // Lock cursor by default
-    if let Ok(mut window) = windows.get_single_mut() {
+    if let Ok(mut window) = windows.single_mut() {
         window.cursor_options.grab_mode = bevy::window::CursorGrabMode::Locked;
         window.cursor_options.visible = false;
     }
     
     commands.insert_resource(CursorLocked(true));
 
-    // Spawn FPS camera with physics
-    commands.spawn((
+    // Spawn FPS camera with physics and weapon inventory
+    let _player_entity = commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(0.0, 1.8, 5.0),
         FpsController::default(),
@@ -64,7 +64,9 @@ fn setup_fps_controller(
         LockedAxes::ROTATION_LOCKED, // Prevent physics rotation
         Friction::new(0.1),
         Restitution::new(0.0),
-    ));
+        crate::weapons::PlayerInventory::default(),
+        crate::interaction::PlayerHealth::default(),
+    )).id();
 }
 
 fn fps_controller_look(
@@ -83,7 +85,7 @@ fn fps_controller_look(
     }
 
     for mut transform in query.iter_mut() {
-        if let Ok(controller) = controller_query.get_single() {
+        if let Ok(controller) = controller_query.single() {
             if !controller.enabled {
                 continue;
             }
@@ -163,7 +165,7 @@ fn toggle_cursor_lock(
     if keyboard_input.just_pressed(KeyCode::Tab) {
         cursor_locked.0 = !cursor_locked.0;
         
-        if let Ok(mut window) = windows.get_single_mut() {
+        if let Ok(mut window) = windows.single_mut() {
             if cursor_locked.0 {
                 window.cursor_options.grab_mode = bevy::window::CursorGrabMode::Locked;
                 window.cursor_options.visible = false;
