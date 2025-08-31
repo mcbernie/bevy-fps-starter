@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::input::mouse::MouseMotion;
+use avian3d::prelude::*;
 
 pub struct FpsControllerPlugin;
 
@@ -10,6 +11,7 @@ impl Plugin for FpsControllerPlugin {
             .add_systems(Update, (
                 fps_controller_look,
                 fps_controller_move,
+                check_grounded,
                 toggle_cursor_lock,
             ));
     }
@@ -20,6 +22,8 @@ pub struct FpsController {
     pub speed: f32,
     pub sensitivity: f32,
     pub enabled: bool,
+    pub jump_force: f32,
+    pub is_grounded: bool,
 }
 
 impl Default for FpsController {
@@ -28,6 +32,8 @@ impl Default for FpsController {
             speed: 10.0,
             sensitivity: 0.002,
             enabled: true,
+            jump_force: 300.0,
+            is_grounded: false,
         }
     }
 }
@@ -40,19 +46,27 @@ fn setup_fps_controller(
     mut windows: Query<&mut Window>,
 ) {
     // Lock cursor by default
-    if let Ok(mut window) = windows.get_single_mut() {
+    if let Ok(mut window) = windows.single_mut() {
         window.cursor_options.grab_mode = bevy::window::CursorGrabMode::Locked;
         window.cursor_options.visible = false;
     }
     
     commands.insert_resource(CursorLocked(true));
 
-    // Spawn FPS camera
-    commands.spawn((
+    // Spawn FPS camera with physics and weapon inventory
+    let _player_entity = commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(0.0, 1.8, 5.0),
         FpsController::default(),
-    ));
+        RigidBody::Dynamic,
+        Collider::capsule(0.4, 1.8), // Capsule collider for player
+        Mass(70.0), // Player mass in kg
+        LockedAxes::ROTATION_LOCKED, // Prevent physics rotation
+        Friction::new(0.1),
+        Restitution::new(0.0),
+        crate::weapons::PlayerInventory::default(),
+        crate::interaction::PlayerHealth::default(),
+    )).id();
 }
 
 fn fps_controller_look(
@@ -71,7 +85,7 @@ fn fps_controller_look(
     }
 
     for mut transform in query.iter_mut() {
-        if let Ok(controller) = controller_query.get_single() {
+        if let Ok(controller) = controller_query.single() {
             if !controller.enabled {
                 continue;
             }
@@ -94,42 +108,51 @@ fn fps_controller_look(
 fn fps_controller_move(
     time: Res<Time>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut query: Query<&mut Transform, With<FpsController>>,
-    controller_query: Query<&FpsController>,
+    mut query: Query<(&mut LinearVelocity, &Transform, &mut FpsController), With<FpsController>>,
 ) {
-    for mut transform in query.iter_mut() {
-        if let Ok(controller) = controller_query.get_single() {
-            if !controller.enabled {
-                continue;
-            }
+    for (mut linear_velocity, transform, mut controller) in query.iter_mut() {
+        if !controller.enabled {
+            continue;
+        }
 
-            let mut velocity = Vec3::ZERO;
-            let local_z = transform.local_z();
-            let forward = -Vec3::new(local_z.x, 0.0, local_z.z);
-            let right = Vec3::new(local_z.z, 0.0, -local_z.x);
+        // Calculate movement direction
+        let local_z = transform.local_z();
+        let forward = -Vec3::new(local_z.x, 0.0, local_z.z);
+        let right = Vec3::new(local_z.z, 0.0, -local_z.x);
 
-            // Movement input
-            if keyboard_input.pressed(KeyCode::KeyW) {
-                velocity += forward;
-            }
-            if keyboard_input.pressed(KeyCode::KeyS) {
-                velocity -= forward;
-            }
-            if keyboard_input.pressed(KeyCode::KeyA) {
-                velocity -= right;
-            }
-            if keyboard_input.pressed(KeyCode::KeyD) {
-                velocity += right;
-            }
-            if keyboard_input.pressed(KeyCode::Space) {
-                velocity += Vec3::Y;
-            }
-            if keyboard_input.pressed(KeyCode::ShiftLeft) {
-                velocity -= Vec3::Y;
-            }
+        let mut movement = Vec3::ZERO;
 
-            velocity = velocity.normalize_or_zero();
-            transform.translation += velocity * controller.speed * time.delta_secs();
+        // Movement input
+        if keyboard_input.pressed(KeyCode::KeyW) {
+            movement += forward;
+        }
+        if keyboard_input.pressed(KeyCode::KeyS) {
+            movement -= forward;
+        }
+        if keyboard_input.pressed(KeyCode::KeyA) {
+            movement -= right;
+        }
+        if keyboard_input.pressed(KeyCode::KeyD) {
+            movement += right;
+        }
+
+        // Normalize movement and apply speed
+        if movement.length() > 0.0 {
+            movement = movement.normalize() * controller.speed;
+        }
+
+        // Apply horizontal movement, preserve vertical velocity
+        linear_velocity.x = movement.x;
+        linear_velocity.z = movement.z;
+
+        // Jumping - only when grounded and space is just pressed
+        if keyboard_input.just_pressed(KeyCode::Space) && controller.is_grounded {
+            linear_velocity.y = controller.jump_force;
+        }
+
+        // Crouch/downward movement (ShiftLeft)
+        if keyboard_input.pressed(KeyCode::ShiftLeft) && !controller.is_grounded {
+            linear_velocity.y -= controller.speed * 2.0;
         }
     }
 }
@@ -142,7 +165,7 @@ fn toggle_cursor_lock(
     if keyboard_input.just_pressed(KeyCode::Tab) {
         cursor_locked.0 = !cursor_locked.0;
         
-        if let Ok(mut window) = windows.get_single_mut() {
+        if let Ok(mut window) = windows.single_mut() {
             if cursor_locked.0 {
                 window.cursor_options.grab_mode = bevy::window::CursorGrabMode::Locked;
                 window.cursor_options.visible = false;
@@ -150,6 +173,30 @@ fn toggle_cursor_lock(
                 window.cursor_options.grab_mode = bevy::window::CursorGrabMode::None;
                 window.cursor_options.visible = true;
             }
+        }
+    }
+}
+
+fn check_grounded(
+    mut controllers: Query<(&Transform, &mut FpsController)>,
+    spatial_query: SpatialQuery,
+) {
+    for (transform, mut controller) in controllers.iter_mut() {
+        // Cast a ray downward to check if player is grounded
+        let ray_start = transform.translation;
+        let ray_direction = Dir3::NEG_Y;
+        let ray_distance = 1.0; // Check 1 unit below player
+        
+        if let Some(_hit) = spatial_query.cast_ray(
+            ray_start,
+            ray_direction,
+            ray_distance,
+            false,
+            &SpatialQueryFilter::default(),
+        ) {
+            controller.is_grounded = true;
+        } else {
+            controller.is_grounded = false;
         }
     }
 }
