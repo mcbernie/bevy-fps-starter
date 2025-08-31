@@ -62,7 +62,7 @@ fn setup_game(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    game_assets: Res<assets::GameAssets>,
+    _game_assets: Res<assets::GameAssets>,
 ) {
     // Ground plane
     commands.spawn((
@@ -85,12 +85,6 @@ fn setup_game(
             -3.0 + (i as f32 * 2.0)
         );
         assets::spawn_character_model(&mut commands, &mut meshes, &mut materials, position);
-    }
-
-    // Spawn weapon models for pickup (will be replaced with actual models when loaded)
-    if game_assets.assets_loaded {
-        assets::spawn_weapon_model(&mut commands, &game_assets, Vec3::new(3.0, 1.0, -2.0));
-        assets::spawn_weapon_model(&mut commands, &game_assets, Vec3::new(-3.0, 1.0, -2.0));
     }
 
     // Enhanced lighting setup

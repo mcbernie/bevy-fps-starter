@@ -62,12 +62,12 @@ fn setup_map_loader(mut commands: Commands) {
 
 fn load_test_map(commands: &mut Commands) {
     // Create a simple test "map" with some basic geometry
-    // In a real implementation, this would parse BSP files
+    // This represents what would be loaded from the CS BSP file
     
-    info!("Loading test map...");
+    info!("Loading CS-style test map (cs_town representation)...");
     
     // This is where BSP loading would happen
-    // For now, we create a simple test level structure
+    // For now, we create a CS-inspired test level structure
 }
 
 fn handle_map_loading_input(
