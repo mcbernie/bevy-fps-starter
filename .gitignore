@@ -1,0 +1,47 @@
+# Rust
+target/
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Bevy
+*.pdb
+
+# Assets (if large)
+# assets/models/large/
+# assets/textures/large/
+
+# Logs
+*.log
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Temporary files
+/tmp/
+temp/
+.tmp/
+
+# Local development
+.env
+.env.local
+
+# Profiling
+flamegraph.svg
+perf.data*
+
+# Audio (if using large files)
+# assets/audio/*.wav
+# assets/audio/*.ogg

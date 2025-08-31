@@ -1,0 +1,39 @@
+# Development
+[releasetag]
+automatic = true
+push-tag = true
+
+# Example configuration file for FPS Starter
+# Copy this to config.toml and modify as needed
+
+[game]
+title = "My FPS Game"
+window_width = 1280
+window_height = 720
+fullscreen = false
+vsync = true
+max_fps = 144
+
+[input]
+mouse_sensitivity = 0.002
+invert_y = false
+
+[graphics]
+shadows = true
+ambient_intensity = 0.3
+anisotropic_filtering = 16
+msaa = 4
+
+[physics]
+gravity = -9.81
+debug_render = false
+
+[networking]
+default_port = 5000
+max_players = 16
+server_name = "My FPS Server"
+
+[audio]
+master_volume = 1.0
+sfx_volume = 0.8
+music_volume = 0.6
