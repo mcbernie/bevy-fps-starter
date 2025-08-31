@@ -54,7 +54,7 @@ fn setup_fps_controller(
     commands.insert_resource(CursorLocked(true));
 
     // Spawn FPS camera with physics and weapon inventory
-    let _player_entity = commands.spawn((
+    let player_entity = commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(0.0, 1.8, 5.0),
         FpsController::default(),
@@ -66,6 +66,7 @@ fn setup_fps_controller(
         Restitution::new(0.0),
         crate::weapons::PlayerInventory::default(),
         crate::interaction::PlayerHealth::default(),
+        crate::audio::FootstepEmitter::default(),
     )).id();
 }
 

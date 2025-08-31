@@ -5,7 +5,7 @@ pub struct GameUIPlugin;
 impl Plugin for GameUIPlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_systems(Startup, setup_ui)
+            .add_systems(Startup, (setup_ui, setup_loading_screen))
             .add_systems(Update, (
                 update_fps_display,
                 update_crosshair,
@@ -14,6 +14,8 @@ impl Plugin for GameUIPlugin {
                 update_health_display,
                 update_ammo_display,
                 update_weapon_display,
+                update_loading_screen,
+                handle_asset_loading_complete,
             ));
     }
 }
@@ -35,6 +37,15 @@ pub struct AmmoDisplay;
 
 #[derive(Component)]
 pub struct WeaponDisplay;
+
+#[derive(Component)]
+pub struct LoadingScreen;
+
+#[derive(Component)]
+pub struct LoadingProgressBar;
+
+#[derive(Component)]
+pub struct LoadingText;
 
 #[derive(Resource)]
 pub struct UISettings {
@@ -273,4 +284,111 @@ pub fn create_button(
         BackgroundColor(Color::srgb(0.2, 0.2, 0.2)),
         BorderColor(Color::srgb(0.5, 0.5, 0.5)),
     )).id()
+}
+
+fn setup_loading_screen(mut commands: Commands) {
+    // Create loading screen overlay
+    commands.spawn((
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(0.0),
+            top: Val::Px(0.0),
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            flex_direction: FlexDirection::Column,
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.8)),
+        LoadingScreen,
+    )).with_children(|parent| {
+        // Loading title
+        parent.spawn((
+            Text::new("BEVY FPS STARTER"),
+            TextFont {
+                font_size: 48.0,
+                ..default()
+            },
+            TextColor(Color::WHITE),
+            Node {
+                margin: UiRect::bottom(Val::Px(30.0)),
+                ..default()
+            },
+        ));
+
+        // Loading text
+        parent.spawn((
+            Text::new("Loading assets..."),
+            TextFont {
+                font_size: 24.0,
+                ..default()
+            },
+            TextColor(Color::WHITE),
+            LoadingText,
+            Node {
+                margin: UiRect::bottom(Val::Px(20.0)),
+                ..default()
+            },
+        ));
+
+        // Progress bar background
+        parent.spawn((
+            Node {
+                width: Val::Px(400.0),
+                height: Val::Px(20.0),
+                border: UiRect::all(Val::Px(2.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgb(0.2, 0.2, 0.2)),
+            BorderColor(Color::WHITE),
+        )).with_children(|bar_parent| {
+            // Progress bar fill
+            bar_parent.spawn((
+                Node {
+                    width: Val::Percent(0.0),
+                    height: Val::Percent(100.0),
+                    ..default()
+                },
+                BackgroundColor(Color::srgb(0.0, 0.8, 0.2)),
+                LoadingProgressBar,
+            ));
+        });
+    });
+
+    info!("Loading screen created");
+}
+
+fn update_loading_screen(
+    game_assets: Res<crate::assets::GameAssets>,
+    mut progress_query: Query<&mut Node, With<LoadingProgressBar>>,
+    mut text_query: Query<&mut Text, With<LoadingText>>,
+) {
+    // Update progress bar
+    for mut style in progress_query.iter_mut() {
+        style.width = Val::Percent(game_assets.loading_progress * 100.0);
+    }
+
+    // Update loading text
+    for mut text in text_query.iter_mut() {
+        if game_assets.assets_loaded {
+            text.0 = "Loading complete!".to_string();
+        } else {
+            text.0 = format!("Loading assets... {:.0}%", game_assets.loading_progress * 100.0);
+        }
+    }
+}
+
+fn handle_asset_loading_complete(
+    mut commands: Commands,
+    mut loading_events: EventReader<crate::assets::AssetLoadingComplete>,
+    loading_screen_query: Query<Entity, With<LoadingScreen>>,
+) {
+    for _ in loading_events.read() {
+        // Remove loading screen when assets are loaded
+        for entity in loading_screen_query.iter() {
+            commands.entity(entity).despawn();
+        }
+        info!("Loading screen removed - game ready!");
+    }
 }
