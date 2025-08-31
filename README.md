@@ -5,10 +5,12 @@ A comprehensive FPS starter project for Bevy 0.16 in the style of Half-Life 1/Co
 ## Features
 
 - ✅ **Modular Architecture**: Well-organized plugin system for easy extensibility
-- ✅ **FPS Controller**: Custom first-person controller with mouse look and WASD movement
-- ✅ **Physics Integration**: Avian3D physics engine for realistic interactions
+- ✅ **FPS Controller**: Physics-based first-person controller with proper jumping mechanics
+- ✅ **Physics Integration**: Avian3D physics engine for realistic movement and interactions
+- ✅ **Weapon System**: Complete weapon handling with pickup, firing, and different weapon types
+- ✅ **Interaction System**: E key interactions with health packs, ammo packs, and weapon pickups
+- ✅ **Enhanced HUD**: Real-time health, ammo, and weapon displays with professional layout
 - ✅ **Advanced Lighting**: Dynamic lighting with flickering effects and shadows
-- ✅ **UI System**: Game UI with crosshair and debug information
 - 🚧 **BSP Map Loading**: Foundation for loading Quake/Half-Life style BSP maps
 - 🚧 **Multiplayer**: Networking foundation (Lightyear integration planned)
 - 🚧 **Audio System**: 3D positional audio support
@@ -35,12 +37,13 @@ cargo run
 
 ## Controls
 
-| Key | Action |
-|-----|--------|
+| Key/Input | Action |
+|-----------|--------|
 | **WASD** | Move around |
 | **Mouse** | Look around |
-| **Space** | Move up |
-| **Shift** | Move down |
+| **Space** | Jump (physics-based, only when grounded) |
+| **E** | Interact with items/pickups |
+| **Left Mouse** | Fire equipped weapon |
 | **Tab** | Toggle cursor lock/unlock |
 | **Esc** | Exit game |
 | **F3** | Toggle physics debug |
