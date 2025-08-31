@@ -11,6 +11,7 @@ impl Plugin for WeaponPlugin {
                 weapon_pickup_system,
                 weapon_usage_system,
                 update_weapon_sway,
+                spawn_held_weapon_view,
             ));
     }
 }
@@ -46,7 +47,7 @@ pub struct WeaponSway {
     pub bob_intensity: f32,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 pub enum WeaponType {
     Pistol,
     Rifle,
@@ -77,12 +78,14 @@ fn setup_weapon_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    game_assets: Res<crate::assets::GameAssets>,
 ) {
     // Create some weapon pickups in the world
     spawn_weapon_pickup(
         &mut commands,
         &mut meshes,
         &mut materials,
+        &game_assets,
         WeaponType::Pistol,
         Vec3::new(-5.0, 1.0, -5.0),
         30,
@@ -92,6 +95,7 @@ fn setup_weapon_system(
         &mut commands,
         &mut meshes,
         &mut materials,
+        &game_assets,
         WeaponType::Rifle,
         Vec3::new(5.0, 1.0, -5.0),
         90,
@@ -101,6 +105,7 @@ fn setup_weapon_system(
         &mut commands,
         &mut meshes,
         &mut materials,
+        &game_assets,
         WeaponType::Shotgun,
         Vec3::new(0.0, 1.0, -8.0),
         12,
@@ -111,32 +116,80 @@ fn spawn_weapon_pickup(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    game_assets: &crate::assets::GameAssets,
     weapon_type: WeaponType,
     position: Vec3,
     ammo: u32,
 ) {
-    let (color, size) = match weapon_type {
-        WeaponType::Pistol => (Color::srgb(0.7, 0.7, 0.9), Vec3::new(0.3, 0.2, 0.6)),
-        WeaponType::Rifle => (Color::srgb(0.3, 0.3, 0.3), Vec3::new(0.2, 0.2, 1.2)),
-        WeaponType::Shotgun => (Color::srgb(0.6, 0.4, 0.2), Vec3::new(0.25, 0.25, 1.0)),
+    let _pickup_entity = if game_assets.assets_loaded {
+        // Use actual weapon model for rifle (since we have the saiga model)
+        match weapon_type {
+            WeaponType::Rifle => {
+                commands.spawn((
+                    SceneRoot(game_assets.weapon_model.clone()),
+                    Transform::from_translation(position).with_scale(Vec3::splat(0.3)),
+                    RigidBody::Static,
+                    Collider::cuboid(0.2, 0.2, 1.0), // Approximate collider
+                    WeaponPickup {
+                        weapon_type,
+                        ammo_count: ammo,
+                    },
+                    crate::assets::WeaponModel,
+                )).id()
+            },
+            _ => {
+                // For other weapons, use placeholder shapes
+                let (color, size) = match weapon_type {
+                    WeaponType::Pistol => (Color::srgb(0.7, 0.7, 0.9), Vec3::new(0.3, 0.2, 0.6)),
+                    WeaponType::Shotgun => (Color::srgb(0.6, 0.4, 0.2), Vec3::new(0.25, 0.25, 1.0)),
+                    _ => (Color::srgb(0.5, 0.5, 0.5), Vec3::new(0.2, 0.2, 0.8)),
+                };
+
+                commands.spawn((
+                    Mesh3d(meshes.add(Cuboid::from_size(size))),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color: color,
+                        metallic: 0.8,
+                        perceptual_roughness: 0.2,
+                        ..default()
+                    })),
+                    Transform::from_translation(position),
+                    RigidBody::Static,
+                    Collider::cuboid(size.x, size.y, size.z),
+                    WeaponPickup {
+                        weapon_type,
+                        ammo_count: ammo,
+                    },
+                )).id()
+            }
+        }
+    } else {
+        // Fallback to placeholder shapes if assets not loaded
+        let (color, size) = match weapon_type {
+            WeaponType::Pistol => (Color::srgb(0.7, 0.7, 0.9), Vec3::new(0.3, 0.2, 0.6)),
+            WeaponType::Rifle => (Color::srgb(0.3, 0.3, 0.3), Vec3::new(0.2, 0.2, 1.2)),
+            WeaponType::Shotgun => (Color::srgb(0.6, 0.4, 0.2), Vec3::new(0.25, 0.25, 1.0)),
+        };
+
+        commands.spawn((
+            Mesh3d(meshes.add(Cuboid::from_size(size))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: color,
+                metallic: 0.8,
+                perceptual_roughness: 0.2,
+                ..default()
+            })),
+            Transform::from_translation(position),
+            RigidBody::Static,
+            Collider::cuboid(size.x, size.y, size.z),
+            WeaponPickup {
+                weapon_type,
+                ammo_count: ammo,
+            },
+        )).id()
     };
 
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::from_size(size))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: color,
-            metallic: 0.8,
-            perceptual_roughness: 0.2,
-            ..default()
-        })),
-        Transform::from_translation(position),
-        RigidBody::Static,
-        Collider::cuboid(size.x, size.y, size.z),
-        WeaponPickup {
-            weapon_type,
-            ammo_count: ammo,
-        },
-    ));
+    info!("Spawned {:?} weapon pickup at {:?}", weapon_type, position);
 }
 
 fn weapon_pickup_system(
@@ -290,6 +343,45 @@ fn update_weapon_sway(
         transform.translation = new_position;
     }
 }
+
+fn spawn_held_weapon_view(
+    mut commands: Commands,
+    game_assets: Res<crate::assets::GameAssets>,
+    player_query: Query<(Entity, &PlayerInventory), (With<crate::fps_controller::FpsController>, Changed<PlayerInventory>)>,
+    weapon_query: Query<&Weapon>,
+    existing_view_weapons: Query<Entity, With<HeldWeaponView>>,
+) {
+    for (player_entity, inventory) in player_query.iter() {
+        // Remove existing weapon view
+        for entity in existing_view_weapons.iter() {
+            commands.entity(entity).despawn();
+        }
+
+        // Spawn new weapon view if player has a weapon
+        if let Some(weapon_entity) = inventory.held_weapon {
+            if let Ok(weapon) = weapon_query.get(weapon_entity) {
+                if game_assets.assets_loaded {
+                    // Spawn the weapon model in first-person view
+                    let weapon_view_entity = commands.spawn((
+                        SceneRoot(game_assets.weapon_model.clone()),
+                        Transform::from_translation(Vec3::new(0.5, -0.3, -0.8))
+                            .with_scale(Vec3::splat(0.15)),
+                        WeaponSway::default(),
+                        HeldWeaponView,
+                    )).id();
+
+                    // Make the weapon view a child of the player camera
+                    commands.entity(player_entity).add_children(&[weapon_view_entity]);
+                    
+                    info!("Spawned weapon view for {}", weapon.name);
+                }
+            }
+        }
+    }
+}
+
+#[derive(Component)]
+pub struct HeldWeaponView;
 
 // Utility function to add weapon inventory to player
 pub fn add_weapon_inventory_to_player(commands: &mut Commands, player_entity: Entity) {
