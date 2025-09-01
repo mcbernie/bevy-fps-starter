@@ -107,7 +107,7 @@ fn setup_weapon_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    game_assets: Res<crate::assets::GameAssets>,
+    game_assets: Res<crate::content::assets::GameAssets>,
 ) {
     // Create some weapon pickups in the world
     spawn_weapon_pickup(
@@ -145,7 +145,7 @@ fn spawn_weapon_pickup(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    game_assets: &crate::assets::GameAssets,
+    game_assets: &crate::content::assets::GameAssets,
     weapon_type: WeaponType,
     position: Vec3,
     ammo: u32,
@@ -163,7 +163,7 @@ fn spawn_weapon_pickup(
                         weapon_type,
                         ammo_count: ammo,
                     },
-                    crate::assets::WeaponModel,
+                    crate::content::assets::WeaponModel,
                 )).id()
             },*/
             _ => {
@@ -224,8 +224,8 @@ fn spawn_weapon_pickup(
 fn weapon_pickup_system(
     mut commands: Commands,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut player_query: Query<(&Transform, &mut PlayerInventory), With<crate::fps_controller::FpsController>>,
-    pickup_query: Query<(Entity, &Transform, &WeaponPickup), Without<crate::fps_controller::FpsController>>,
+    mut player_query: Query<(&Transform, &mut PlayerInventory), With<crate::core::fps_controller::FpsController>>,
+    pickup_query: Query<(Entity, &Transform, &WeaponPickup), Without<crate::core::fps_controller::FpsController>>,
     time: Res<Time>,
 ) {
     if !keyboard_input.just_pressed(KeyCode::KeyE) {
@@ -297,7 +297,7 @@ fn weapon_pickup_system(
 fn weapon_usage_system(
     mut commands: Commands,
     mouse_input: Res<ButtonInput<MouseButton>>,
-    mut player_query: Query<(&Transform, &mut PlayerInventory), With<crate::fps_controller::FpsController>>,
+    mut player_query: Query<(&Transform, &mut PlayerInventory), With<crate::core::fps_controller::FpsController>>,
     mut weapon_query: Query<&mut Weapon>,
     time: Res<Time>,
     spatial_query: SpatialQuery,
@@ -358,9 +358,9 @@ fn fire_weapon(
 
 fn spawn_held_weapon_view(
     mut commands: Commands,
-    game_assets: Res<crate::assets::GameAssets>,
-    weapon_arm_asset: Res<crate::assets::WeaponArm>,
-    player_query: Query<(Entity, &PlayerInventory), (With<crate::fps_controller::FpsController>, Changed<PlayerInventory>)>,
+    game_assets: Res<crate::content::assets::GameAssets>,
+    weapon_arm_asset: Res<crate::content::assets::WeaponArm>,
+    player_query: Query<(Entity, &PlayerInventory), (With<crate::core::fps_controller::FpsController>, Changed<PlayerInventory>)>,
     weapon_query: Query<&Weapon>,
     existing_view_weapons: Query<Entity, With<HeldWeaponView>>,
 ) {
@@ -473,7 +473,7 @@ pub struct WeaponAnimationChanged;
 
 // Beim Assets-Ready-Event:
 fn build_anim_graph(
-    weapon: Res<crate::assets::WeaponArm>, // enthält deine Clip-Handles
+    weapon: Res<crate::content::assets::WeaponArm>, // enthält deine Clip-Handles
     mut graphs: ResMut<Assets<AnimationGraph>>,
     mut out: ResMut<WeaponAnimSet>,
 ) {
@@ -505,7 +505,7 @@ fn update_weapon_animation_state(
     time: Res<Time>,
     keyboard: Res<ButtonInput<KeyCode>>,
     mouse_input: Res<ButtonInput<MouseButton>>,
-    player_query: Query<&PlayerInventory, With<crate::fps_controller::FpsController>>,
+    player_query: Query<&PlayerInventory, With<crate::core::fps_controller::FpsController>>,
     weapon_query: Query<&Weapon>,
     mut anim_player_query: Query<&mut WeaponAnimationState, With<WeaponAnimPlayer>>,
     mut animation_change_event: EventWriter<WeaponAnimationChanged>,

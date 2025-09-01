@@ -174,9 +174,9 @@ fn spawn_ammo_pack(
 fn handle_interaction_input(
     mut commands: Commands,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut player_query: Query<(&Transform, &mut PlayerHealth, &mut crate::weapons::PlayerInventory), With<crate::fps_controller::FpsController>>,
-    mut interactable_query: Query<(Entity, &Transform, &Interactable, Option<&HealthPack>, Option<&AmmoPack>), Without<crate::fps_controller::FpsController>>,
-    mut weapon_query: Query<&mut crate::weapons::Weapon>,
+    mut player_query: Query<(&Transform, &mut PlayerHealth, &mut crate::gameplay::weapons::PlayerInventory), With<crate::core::fps_controller::FpsController>>,
+    mut interactable_query: Query<(Entity, &Transform, &Interactable, Option<&HealthPack>, Option<&AmmoPack>), Without<crate::core::fps_controller::FpsController>>,
+    mut weapon_query: Query<&mut crate::gameplay::weapons::Weapon>,
 ) {
     if !keyboard_input.just_pressed(KeyCode::KeyE) {
         return;
@@ -232,8 +232,8 @@ fn handle_interaction_input(
 }
 
 fn update_interaction_prompts(
-    player_query: Query<&Transform, With<crate::fps_controller::FpsController>>,
-    interactable_query: Query<(Entity, &Transform, &Interactable), Without<crate::fps_controller::FpsController>>,
+    player_query: Query<&Transform, With<crate::core::fps_controller::FpsController>>,
+    interactable_query: Query<(Entity, &Transform, &Interactable), Without<crate::core::fps_controller::FpsController>>,
     mut prompt_query: Query<(&mut InteractionPrompt, &mut Visibility, &mut Text)>,
 ) {
     for player_transform in player_query.iter() {

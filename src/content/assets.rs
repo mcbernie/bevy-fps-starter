@@ -200,7 +200,7 @@ pub fn create_simple_level_geometry(
         Mesh3d(meshes.add(Cuboid::new(20.0, 5.0, 0.5))),
         MeshMaterial3d(wall_material.clone()),
         Transform::from_xyz(0.0, 2.5, -10.0),
-        crate::maps::MapGeometry,
+        crate::content::maps::MapGeometry,
     ));
 
     // Side walls
@@ -208,14 +208,14 @@ pub fn create_simple_level_geometry(
         Mesh3d(meshes.add(Cuboid::new(0.5, 5.0, 20.0))),
         MeshMaterial3d(wall_material.clone()),
         Transform::from_xyz(-10.0, 2.5, 0.0),
-        crate::maps::MapGeometry,
+        crate::content::maps::MapGeometry,
     ));
 
     commands.spawn((
         Mesh3d(meshes.add(Cuboid::new(0.5, 5.0, 20.0))),
         MeshMaterial3d(wall_material.clone()),
         Transform::from_xyz(10.0, 2.5, 0.0),
-        crate::maps::MapGeometry,
+        crate::content::maps::MapGeometry,
     ));
 
     // Create some platforms and obstacles
@@ -230,7 +230,7 @@ pub fn create_simple_level_geometry(
             Mesh3d(meshes.add(Cuboid::new(2.0, 0.2, 2.0))),
             MeshMaterial3d(platform_material.clone()),
             Transform::from_xyz(x, 1.0 + i as f32 * 0.5, -5.0),
-            crate::maps::MapGeometry,
+            crate::content::maps::MapGeometry,
         ));
     }
 
