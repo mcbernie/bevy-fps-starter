@@ -51,7 +51,7 @@ fn load_game_assets(
     info!("Loading game assets...");
     
     // Load Weapon Pack
-    game_assets.weapon_asset = asset_server.load("fpsview/fps_saiga_animations/scene.glb");
+    game_assets.weapon_asset = asset_server.load("fpsview/fps_saiga_animations/scene.gltf");
     // Load weapon model from fpsview
     //game_assets.weapon_model = asset_server.load("fpsview/fps_saiga_animations/scene.gltf#Scene0");
     
