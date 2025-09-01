@@ -59,27 +59,59 @@ cargo run
 
 ```
 src/
-├── main.rs              # Main application entry point
-├── fps_controller.rs    # First-person controller system
-├── physics.rs           # Physics integration (Avian3D)
-├── lighting.rs          # Dynamic lighting system
-├── maps.rs              # Map loading and BSP support
-├── multiplayer.rs       # Networking and multiplayer
-└── ui.rs                # User interface system
+├── main.rs                        # Main application entry point
+├── core/                          # Core engine systems
+│   ├── fps_controller.rs          # First-person controller system
+│   └── physics.rs                 # Physics integration (Avian3D)
+├── gameplay/                      # Game-specific logic
+│   ├── weapons.rs                 # Weapon system and combat
+│   ├── interaction.rs             # Player interactions and health
+│   └── audio.rs                   # Audio and sound effects
+├── content/                       # Content management
+│   ├── assets.rs                  # Asset loading and management
+│   └── maps.rs                    # Map loading and BSP support
+├── rendering/                     # Rendering systems
+│   └── lighting.rs                # Dynamic lighting system
+├── ui/                           # User interface
+│   ├── ui.rs                     # Game UI and HUD
+│   └── networking/               # Networking UI
+│       └── multiplayer.rs        # Multiplayer interface
+├── debug/                        # Debug and development tools
+│   └── inspector.rs              # Enhanced debug inspector
+└── utils/                        # Utilities and helpers
+    └── game_setup.rs             # Game initialization logic
 ```
 
 ## Architecture
 
-The project follows Bevy's plugin architecture for maximum modularity:
+The project follows Bevy's plugin architecture with a structured modular approach optimized for game development readability and maintainability:
 
-### Core Plugins
+### Core Systems
+- **FpsControllerPlugin**: First-person camera movement and input handling
+- **PhysicsPlugin**: Avian3D physics engine integration
 
-- **FpsControllerPlugin**: Handles first-person camera movement and input
-- **PhysicsPlugin**: Integrates Avian3D physics engine
-- **LightingPlugin**: Manages dynamic lighting and shadows
-- **MapLoadingPlugin**: Foundation for BSP map loading
-- **MultiplayerPlugin**: Networking infrastructure
-- **GameUIPlugin**: User interface and HUD
+### Gameplay Systems  
+- **WeaponPlugin**: Weapon system and combat mechanics
+- **InteractionPlugin**: Player interactions, health, and pickups
+- **AudioPlugin**: Audio system and 3D positional sound
+
+### Content Systems
+- **AssetLoadingPlugin**: Asset management and loading
+- **MapLoadingPlugin**: BSP map loading and geometry
+
+### Rendering Systems
+- **LightingPlugin**: Dynamic lighting, shadows, and visual effects
+
+### UI Systems
+- **GameUIPlugin**: HUD, crosshair, health/ammo displays
+- **MultiplayerPlugin**: Networking interface and lobby
+
+### Debug Systems
+- **DebugPlugin**: Enhanced inspector with bevy-inspector-egui integration
+  - Press **F1** to toggle inspector
+  - Press **F2** for physics wireframes  
+  - Press **F3** for FPS overlay
+  - Press **F4** for entity count logging
 
 ### Key Components
 
@@ -215,6 +247,36 @@ fn update_my_feature() {
     // Update logic
 }
 ```
+
+## Debug System
+
+Enhanced debugging tools with bevy-inspector-egui integration:
+
+### Debug Controls
+
+- **F1**: Toggle inspector panel (entity browser, component editor)
+- **F2**: Toggle physics wireframes (collision visualization)  
+- **F3**: Toggle FPS overlay (performance monitoring)
+- **F4**: Toggle entity count logging (debug output)
+- **F5**: Toggle performance logging (frame time stats)
+- **ESC**: Exit application
+
+### Development Workflow
+
+1. **Start with Debug Mode**: Run `cargo run` for full debug features
+2. **Use Inspector**: Press F1 to browse entities and edit components in real-time
+3. **Monitor Performance**: Press F3 for FPS overlay, F5 for detailed stats
+4. **Debug Physics**: Press F2 to visualize collision shapes and physics bodies
+5. **Track Entities**: Press F4 to monitor entity creation/destruction
+
+### Inspector Features
+
+The integrated inspector provides:
+- **Entity Browser**: Navigate through all entities in the scene
+- **Component Editor**: Modify component values in real-time
+- **Resource Inspector**: View and edit global resources
+- **System Information**: Monitor system execution and performance
+- **Asset Browser**: Inspect loaded assets and their states
 
 ## Performance
 
