@@ -99,9 +99,9 @@ fn setup_fps_controller(
         LockedAxes::ROTATION_LOCKED, // Prevent physics rotation
         Friction::new(0.1),
         Restitution::new(0.0),
-        crate::weapons::PlayerInventory::default(),
-        crate::interaction::PlayerHealth::default(),
-        crate::audio::FootstepEmitter::default(),
+        crate::gameplay::weapons::PlayerInventory::default(),
+        crate::gameplay::interaction::PlayerHealth::default(),
+        crate::gameplay::audio::FootstepEmitter::default(),
     )).id();
 }
 

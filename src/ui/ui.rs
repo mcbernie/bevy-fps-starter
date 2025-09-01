@@ -212,7 +212,7 @@ fn handle_ui_input(
 }
 
 fn update_health_display(
-    player_query: Query<&crate::interaction::PlayerHealth, With<crate::fps_controller::FpsController>>,
+    player_query: Query<&crate::gameplay::interaction::PlayerHealth, With<crate::core::fps_controller::FpsController>>,
     mut health_display_query: Query<&mut Text, With<HealthDisplay>>,
 ) {
     for player_health in player_query.iter() {
@@ -223,8 +223,8 @@ fn update_health_display(
 }
 
 fn update_ammo_display(
-    player_query: Query<&crate::weapons::PlayerInventory, With<crate::fps_controller::FpsController>>,
-    weapon_query: Query<&crate::weapons::Weapon>,
+    player_query: Query<&crate::gameplay::weapons::PlayerInventory, With<crate::core::fps_controller::FpsController>>,
+    weapon_query: Query<&crate::gameplay::weapons::Weapon>,
     mut ammo_display_query: Query<&mut Text, With<AmmoDisplay>>,
 ) {
     for inventory in player_query.iter() {
@@ -243,8 +243,8 @@ fn update_ammo_display(
 }
 
 fn update_weapon_display(
-    player_query: Query<&crate::weapons::PlayerInventory, With<crate::fps_controller::FpsController>>,
-    weapon_query: Query<&crate::weapons::Weapon>,
+    player_query: Query<&crate::gameplay::weapons::PlayerInventory, With<crate::core::fps_controller::FpsController>>,
+    weapon_query: Query<&crate::gameplay::weapons::Weapon>,
     mut weapon_display_query: Query<&mut Text, With<WeaponDisplay>>,
 ) {
     for inventory in player_query.iter() {
@@ -360,7 +360,7 @@ fn setup_loading_screen(mut commands: Commands) {
 }
 
 fn update_loading_screen(
-    game_assets: Res<crate::assets::GameAssets>,
+    game_assets: Res<crate::content::assets::GameAssets>,
     mut progress_query: Query<&mut Node, With<LoadingProgressBar>>,
     mut text_query: Query<&mut Text, With<LoadingText>>,
 ) {
@@ -381,7 +381,7 @@ fn update_loading_screen(
 
 fn handle_asset_loading_complete(
     mut commands: Commands,
-    mut loading_events: EventReader<crate::assets::AssetLoadingComplete>,
+    mut loading_events: EventReader<crate::content::assets::AssetLoadingComplete>,
     loading_screen_query: Query<Entity, With<LoadingScreen>>,
 ) {
     for _ in loading_events.read() {
