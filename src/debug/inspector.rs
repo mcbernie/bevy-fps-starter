@@ -42,7 +42,7 @@ impl Default for DebugSettings {
     }
 }
 
-fn setup_debug_tools(mut commands: Commands) {
+fn setup_debug_tools(_commands: Commands) {
     info!("🔧 Debug tools initialized");
     info!("📋 Debug Controls:");
     info!("   F1 - Toggle inspector");
@@ -101,9 +101,9 @@ fn log_performance_stats(
 ) {
     if debug_settings.log_performance {
         // Log performance stats every 5 seconds
-        if time.elapsed_seconds() as u32 % 5 == 0 && time.delta_seconds() > 0.0 {
-            let fps = 1.0 / time.delta_seconds();
-            debug!("⚡ Performance: {:.1} FPS, {:.2}ms frame time", fps, time.delta_seconds() * 1000.0);
+        if time.elapsed_secs() as u32 % 5 == 0 && time.delta_secs() > 0.0 {
+            let fps = 1.0 / time.delta_secs();
+            debug!("⚡ Performance: {:.1} FPS, {:.2}ms frame time", fps, time.delta_secs() * 1000.0);
         }
     }
 }
