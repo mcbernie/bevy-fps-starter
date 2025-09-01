@@ -46,9 +46,9 @@ fn setup_physics_world(
 
     // Add ground collider
     commands.spawn((
-        Transform::from_xyz(0.0, -0.5, 0.0),
+        Transform::from_xyz(0.0, -0.25, 0.0),
         RigidBody::Static,
-        Collider::cuboid(50.0, 0.5, 50.0),
+        Collider::cuboid(50.0, 0.25, 50.0),
         StaticCollider,
     ));
 

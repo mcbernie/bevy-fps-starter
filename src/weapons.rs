@@ -9,6 +9,7 @@ impl Plugin for WeaponPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<WeaponAnimSet>()
+            .add_event::<WeaponAnimationChanged>()
             .add_systems(Startup, setup_weapon_system)
             .add_systems(Update, (
                 weapon_pickup_system,
@@ -24,7 +25,7 @@ impl Plugin for WeaponPlugin {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect)]
 pub struct Weapon {
     pub name: String,
     pub damage: f32,
@@ -47,14 +48,6 @@ pub struct PlayerInventory {
     pub weapons: Vec<Entity>,
 }
 
-#[derive(Component)]
-pub struct WeaponSway {
-    pub base_position: Vec3,
-    pub base_rotation: Quat,
-    pub sway_intensity: f32,
-    pub bob_intensity: f32,
-}
-
 #[derive(Clone, Debug, Copy)]
 pub enum WeaponType {
     Pistol,
@@ -71,31 +64,22 @@ impl Default for PlayerInventory {
     }
 }
 
-impl Default for WeaponSway {
-    fn default() -> Self {
-        Self {
-            base_position: Vec3::new(0.5, -0.3, -0.8),
-            base_rotation: Quat::IDENTITY,
-            sway_intensity: 0.02,
-            bob_intensity: 0.01,
-        }
-    }
-}
 
 #[derive(Component)]
 struct WeaponAnimRoot;      // Marker am Root der View-Model-Scene
 #[derive(Component)]
 struct WeaponAnimPlayer;    // Marker am echten AnimationPlayer-Entity
 
-#[derive(Component, Debug, Clone, PartialEq)]
+#[derive(Component, Debug, Clone, PartialEq, Reflect)]
 pub struct WeaponAnimationState {
     pub current_state: WeaponAnimState,
     pub is_firing: bool,
+    pub firing_time: f32,
     pub transition_timer: f32,
     pub transition_duration: f32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Reflect)]
 pub enum WeaponAnimState {
     Idle,
     Walk,
@@ -109,6 +93,7 @@ impl Default for WeaponAnimationState {
         Self {
             current_state: WeaponAnimState::Idle,
             is_firing: false,
+            firing_time: 0.0,
             transition_timer: 0.0,
             transition_duration: 0.1, // 100ms transition time
         }
@@ -308,6 +293,7 @@ fn weapon_pickup_system(
     }
 }
 
+// mut anim_player_query: Query<&mut WeaponAnimationState, With<WeaponAnimPlayer>>,
 fn weapon_usage_system(
     mut commands: Commands,
     mouse_input: Res<ButtonInput<MouseButton>>,
@@ -315,6 +301,7 @@ fn weapon_usage_system(
     mut weapon_query: Query<&mut Weapon>,
     time: Res<Time>,
     spatial_query: SpatialQuery,
+    mut anim_player_query: Query<&mut WeaponAnimationState, With<WeaponAnimPlayer>>,
 ) {
     for (player_transform, mut inventory) in player_query.iter_mut() {
         if let Some(weapon_entity) = inventory.held_weapon {
@@ -324,8 +311,14 @@ fn weapon_usage_system(
                 // Check if we can fire (fire rate cooldown)
                 if mouse_input.pressed(MouseButton::Left) 
                     && current_time - weapon.last_shot >= weapon.fire_rate 
-                    && weapon.ammo > 0 {
+                    && weapon.ammo > 0
+                {
                     
+                    for mut anim_state in anim_player_query.iter_mut() {
+                        anim_state.firing_time = current_time;
+                        anim_state.is_firing = true;
+                    }
+
                     // Fire weapon
                     fire_weapon(&mut weapon, player_transform, &spatial_query, current_time);
                 }
@@ -363,31 +356,6 @@ fn fire_weapon(
     info!("Fired {} - Ammo remaining: {}", weapon.name, weapon.ammo);
 }
 
-fn update_weapon_sway(
-    time: Res<Time>,
-    input: Res<ButtonInput<KeyCode>>,
-    mut weapon_query: Query<(&mut Transform, &mut WeaponSway), Without<crate::fps_controller::FpsController>>,
-) {
-    for (mut transform, mut sway) in weapon_query.iter_mut() {
-        let elapsed = time.elapsed_secs();
-        
-        // Calculate weapon bob based on movement
-        let is_moving = input.pressed(KeyCode::KeyW) 
-            || input.pressed(KeyCode::KeyS) 
-            || input.pressed(KeyCode::KeyA) 
-            || input.pressed(KeyCode::KeyD);
-            
-        let bob_multiplier = if is_moving { 1.0 } else { 0.3 };
-        
-        // Apply weapon sway and bob
-        let bob_y = (elapsed * 4.0).sin() * sway.bob_intensity * bob_multiplier;
-        let bob_x = (elapsed * 2.0).sin() * sway.bob_intensity * 0.5 * bob_multiplier;
-        
-        let new_position = sway.base_position + Vec3::new(bob_x, bob_y, 0.0);
-        transform.translation = new_position;
-    }
-}
-
 fn spawn_held_weapon_view(
     mut commands: Commands,
     game_assets: Res<crate::assets::GameAssets>,
@@ -413,7 +381,6 @@ fn spawn_held_weapon_view(
                         Transform::from_translation(Vec3::new(0.2, -0.6, -0.2))
                             .with_scale(Vec3::splat(1.0))
                             .with_rotation(Quat::from_rotation_y(std::f32::consts::PI)),
-                        WeaponSway::default(),
                         HeldWeaponView,
                         WeaponAnimRoot,
                         Name::new(format!("HeldWeaponView - {}", weapon.name)),
@@ -429,7 +396,7 @@ fn spawn_held_weapon_view(
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect)]
 pub struct HeldWeaponView;
 
 // Utility function to add weapon inventory to player
@@ -482,6 +449,7 @@ fn start_idle_when_ready(
             let mut transitions = AnimationTransitions::new();
             transitions.play(&mut player, idle_animation, Duration::ZERO).repeat();
 
+            info!("Started idle animation for entity {:?}", e);
             cmds.entity(e)
                 .insert(AnimationGraphHandle(anims.graph.clone()))
                 .insert(transitions)
@@ -499,6 +467,9 @@ pub struct WeaponAnimSet {
     pub reload: Option<AnimationNodeIndex>,
     pub reload_fast: Option<AnimationNodeIndex>,
 }
+
+#[derive(Event)]
+pub struct WeaponAnimationChanged;
 
 // Beim Assets-Ready-Event:
 fn build_anim_graph(
@@ -537,10 +508,11 @@ fn update_weapon_animation_state(
     player_query: Query<&PlayerInventory, With<crate::fps_controller::FpsController>>,
     weapon_query: Query<&Weapon>,
     mut anim_player_query: Query<&mut WeaponAnimationState, With<WeaponAnimPlayer>>,
+    mut animation_change_event: EventWriter<WeaponAnimationChanged>,
 ) {
     for player_inventory in player_query.iter() {
         if let Some(weapon_entity) = player_inventory.held_weapon {
-            if let Ok(_weapon) = weapon_query.get(weapon_entity) {
+            if let Ok(weapon) = weapon_query.get(weapon_entity) {
                 for mut anim_state in anim_player_query.iter_mut() {
                     // Check if player is moving
                     let is_moving = keyboard.pressed(KeyCode::KeyW) 
@@ -549,10 +521,17 @@ fn update_weapon_animation_state(
                         || keyboard.pressed(KeyCode::KeyD);
                     
                     // Check if player is firing
-                    let is_firing = mouse_input.pressed(MouseButton::Left);
+                    //let is_firing = mouse_input.pressed(MouseButton::Left);
                     
                     // Update firing state
-                    anim_state.is_firing = is_firing;
+                    let current_time = time.elapsed_secs();
+                    let is_firing = if anim_state.is_firing && (current_time - anim_state.firing_time) < weapon.fire_rate {
+                        true
+                    } else {
+                        anim_state.is_firing = false;
+                        false
+                    };
+                    //anim_state.is_firing = is_firing;
                     
                     // Determine the desired animation state
                     let desired_state = match (is_moving, is_firing) {
@@ -564,8 +543,10 @@ fn update_weapon_animation_state(
                     
                     // Update transition timer
                     if anim_state.current_state != desired_state {
+                        info!("from {:?} to {:?}", anim_state.current_state, desired_state);
                         anim_state.transition_timer = 0.0;
                         anim_state.current_state = desired_state;
+                        animation_change_event.write(WeaponAnimationChanged);
                     } else {
                         anim_state.transition_timer += time.delta_secs();
                     }
@@ -576,10 +557,14 @@ fn update_weapon_animation_state(
 }
 
 fn handle_weapon_animation_transitions(
+    mut ev: EventReader<WeaponAnimationChanged>,
     time: Res<Time>,
     anims: Res<WeaponAnimSet>,
     mut query: Query<(&mut AnimationPlayer, &mut AnimationTransitions, &WeaponAnimationState), With<WeaponAnimPlayer>>,
 ) {
+    if ev.is_empty() { return; }
+    ev.clear(); // event wurde getriggert, also löschen damit das nicht nochmal kommt
+
     for (mut player, mut transitions, anim_state) in query.iter_mut() {
         // Get the animation node for the current state
         let target_animation = match anim_state.current_state {
@@ -595,6 +580,7 @@ fn handle_weapon_animation_transitions(
             // This will replace any currently playing animation
             let transition_duration = Duration::from_secs_f32(anim_state.transition_duration);
             
+            info!("reset transition...");
             transitions
                 .play(&mut player, target_node, transition_duration)
                 .repeat();
