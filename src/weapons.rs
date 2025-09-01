@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, time::Duration};
 
-use bevy::{prelude::*, scene::SceneInstanceReady};
+use bevy::prelude::*;
 use avian3d::prelude::*;
 
 pub struct WeaponPlugin;
@@ -18,6 +18,8 @@ impl Plugin for WeaponPlugin {
                 on_scene_ready_mark_player,
                 start_idle_when_ready,
                 build_anim_graph,
+                update_weapon_animation_state,
+                handle_weapon_animation_transitions,
             ));
     }
 }
@@ -84,6 +86,34 @@ impl Default for WeaponSway {
 struct WeaponAnimRoot;      // Marker am Root der View-Model-Scene
 #[derive(Component)]
 struct WeaponAnimPlayer;    // Marker am echten AnimationPlayer-Entity
+
+#[derive(Component, Debug, Clone, PartialEq)]
+pub struct WeaponAnimationState {
+    pub current_state: WeaponAnimState,
+    pub is_firing: bool,
+    pub transition_timer: f32,
+    pub transition_duration: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum WeaponAnimState {
+    Idle,
+    Walk,
+    Fire,
+    Reload,
+    ReloadFast,
+}
+
+impl Default for WeaponAnimationState {
+    fn default() -> Self {
+        Self {
+            current_state: WeaponAnimState::Idle,
+            is_firing: false,
+            transition_timer: 0.0,
+            transition_duration: 0.1, // 100ms transition time
+        }
+    }
+}
 
 
 
@@ -454,7 +484,8 @@ fn start_idle_when_ready(
 
             cmds.entity(e)
                 .insert(AnimationGraphHandle(anims.graph.clone()))
-                .insert(transitions);
+                .insert(transitions)
+                .insert(WeaponAnimationState::default());
         }
     }
 }
@@ -497,4 +528,83 @@ fn build_anim_graph(
         graph: graph_handle, 
         idle, walk, fire, reload, reload_fast
     };
+}
+
+fn update_weapon_animation_state(
+    time: Res<Time>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
+    player_query: Query<&PlayerInventory, With<crate::fps_controller::FpsController>>,
+    weapon_query: Query<&Weapon>,
+    mut anim_player_query: Query<&mut WeaponAnimationState, With<WeaponAnimPlayer>>,
+) {
+    for player_inventory in player_query.iter() {
+        if let Some(weapon_entity) = player_inventory.held_weapon {
+            if let Ok(_weapon) = weapon_query.get(weapon_entity) {
+                for mut anim_state in anim_player_query.iter_mut() {
+                    // Check if player is moving
+                    let is_moving = keyboard.pressed(KeyCode::KeyW) 
+                        || keyboard.pressed(KeyCode::KeyS) 
+                        || keyboard.pressed(KeyCode::KeyA) 
+                        || keyboard.pressed(KeyCode::KeyD);
+                    
+                    // Check if player is firing
+                    let is_firing = mouse_input.pressed(MouseButton::Left);
+                    
+                    // Update firing state
+                    anim_state.is_firing = is_firing;
+                    
+                    // Determine the desired animation state
+                    let desired_state = match (is_moving, is_firing) {
+                        (false, false) => WeaponAnimState::Idle,
+                        (true, false) => WeaponAnimState::Walk,
+                        (false, true) => WeaponAnimState::Fire,
+                        (true, true) => WeaponAnimState::Walk, // We'll blend fire with walk
+                    };
+                    
+                    // Update transition timer
+                    if anim_state.current_state != desired_state {
+                        anim_state.transition_timer = 0.0;
+                        anim_state.current_state = desired_state;
+                    } else {
+                        anim_state.transition_timer += time.delta_secs();
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn handle_weapon_animation_transitions(
+    time: Res<Time>,
+    anims: Res<WeaponAnimSet>,
+    mut query: Query<(&mut AnimationPlayer, &mut AnimationTransitions, &WeaponAnimationState), With<WeaponAnimPlayer>>,
+) {
+    for (mut player, mut transitions, anim_state) in query.iter_mut() {
+        // Get the animation node for the current state
+        let target_animation = match anim_state.current_state {
+            WeaponAnimState::Idle => anims.idle,
+            WeaponAnimState::Walk => anims.walk,
+            WeaponAnimState::Fire => anims.fire,
+            WeaponAnimState::Reload => anims.reload,
+            WeaponAnimState::ReloadFast => anims.reload_fast,
+        };
+        
+        if let Some(target_node) = target_animation {
+            // Simple approach: always transition to the target animation
+            // This will replace any currently playing animation
+            let transition_duration = Duration::from_secs_f32(anim_state.transition_duration);
+            
+            transitions
+                .play(&mut player, target_node, transition_duration)
+                .repeat();
+            
+            // If firing while walking, we could add fire animation as a blend
+            // For now, let's keep it simple and just play the primary animation
+            if anim_state.current_state == WeaponAnimState::Walk && anim_state.is_firing {
+                // For firing while walking, we still use walk but could add fire effects later
+                // This is a simplified approach for the initial implementation
+            }
+        }
+    }
 }

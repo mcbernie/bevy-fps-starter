@@ -47,16 +47,16 @@ pub struct FpsController {
 impl Default for FpsController {
     fn default() -> Self {
         Self {
-            speed: 7.0,
+            speed: 8.0,                 // Increased from 7.0 for more responsive movement
             sensitivity: 0.002,
             enabled: true,
-            jump_height: 1.4,
+            jump_height: 1.8,           // Increased from 1.4 for higher jumps
             is_grounded: false,
             coyote_time: 0.12,
             jump_buffer_time: 0.12,
-            air_control: 0.35,
-            accel_ground: 40.0,
-            accel_air: 10.0,
+            air_control: 0.45,          // Increased from 0.35 for better air control
+            accel_ground: 50.0,         // Increased from 40.0 for faster acceleration
+            accel_air: 15.0,            // Increased from 10.0 for better air movement
             max_slope_deg: 50.0,
             skin_width: 0.06,
 
@@ -178,10 +178,30 @@ fn fps_controller_move(
 
         let target_v = Vec2::new(wish.x, wish.z);
         let curr_v   = Vec2::new(lv.x, lv.z);
-        let accel = if ctrl.is_grounded { ctrl.accel_ground } else { ctrl.accel_air.max(ctrl.accel_ground * ctrl.air_control) };
-        let dv = (target_v - curr_v).clamp_length_max(accel * dt);
-        lv.x += dv.x;
-        lv.z += dv.y;
+        
+        // Improved acceleration system
+        if ctrl.is_grounded {
+            // Ground movement with better deceleration
+            if target_v.length_squared() > 0.0 {
+                // Accelerating
+                let accel = ctrl.accel_ground;
+                let dv = (target_v - curr_v).clamp_length_max(accel * dt);
+                lv.x += dv.x;
+                lv.z += dv.y;
+            } else {
+                // Decelerating when no input
+                let decel = ctrl.accel_ground * 1.5; // Faster deceleration for more responsive feel
+                let dv = curr_v.clamp_length_max(decel * dt);
+                lv.x -= dv.x;
+                lv.z -= dv.y;
+            }
+        } else {
+            // Air movement with reduced control
+            let air_accel = ctrl.accel_air.max(ctrl.accel_ground * ctrl.air_control);
+            let dv = (target_v - curr_v).clamp_length_max(air_accel * dt);
+            lv.x += dv.x;
+            lv.z += dv.y;
+        }
 
         // --- Sprungbedingungen
         let buffer_ok = ctrl.jump_buffer_timer >= 0.0;
@@ -193,8 +213,8 @@ fn fps_controller_move(
         let can_jump = buffer_ok && (ground_ok || air_ok) && input_ok && lock_ok;
 
         if can_jump {
-            // Gewünschte Sprunghöhe -> Startgeschwindigkeit
-            let g = 9.81_f32;
+            // Improved jump calculation for more responsive jumping
+            let g = 12.0; // Increased gravity for faster falling (was 9.81)
             let v0 = (2.0 * g * ctrl.jump_height).sqrt();
 
             // Down-V eliminieren für konsistente Höhe
@@ -209,14 +229,24 @@ fn fps_controller_move(
             if !ground_ok { ctrl.used_air_jumps += 1; }
         }
 
-        // leichte Bodenhaftung (nur, wenn wirklich grounded)
-        if ctrl.is_grounded && lv.y < 0.0 {
-            lv.y = lv.y.max(-2.0);
-        }
-
-        // Optional: Fast-Fall
-        if keyboard.pressed(KeyCode::ShiftLeft) && !ctrl.is_grounded {
-            lv.y -= ctrl.speed * 2.0 * dt;
+        // Improved gravity and air movement
+        if !ctrl.is_grounded {
+            // Apply stronger gravity for faster falling
+            let gravity = 12.0; // Increased from 9.81
+            lv.y -= gravity * dt;
+            
+            // Optional: Faster fall when holding shift
+            if keyboard.pressed(KeyCode::ShiftLeft) {
+                lv.y -= gravity * 1.5 * dt; // Extra downward force
+            }
+            
+            // Terminal velocity cap
+            lv.y = lv.y.max(-25.0); // Faster terminal velocity (was no cap)
+        } else {
+            // Light ground adhesion (only when really grounded)
+            if lv.y < 0.0 {
+                lv.y = lv.y.max(-2.0);
+            }
         }
     }
 }
@@ -296,6 +326,14 @@ fn check_grounded(
         if ctrl.is_grounded && !was_grounded {
             ctrl.used_air_jumps = 0;
             ctrl.jump_locked = false; // erst am Boden wird wieder entsperrt
+        }
+        
+        // Ensure jump lock is maintained until we're stable on ground
+        if !ctrl.is_grounded && ctrl.ground_frames == 0 {
+            // Still in air, keep jump locked if it was a recent jump
+            if !ctrl.jump_was_released {
+                ctrl.jump_locked = true;
+            }
         }
     }
 }
