@@ -6,18 +6,33 @@ impl Plugin for AssetLoadingPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<GameAssets>()
+            .init_resource::<WeaponArm>()
             .add_event::<AssetLoadingComplete>()
             .add_systems(Startup, load_game_assets)
-            .add_systems(Update, check_asset_loading);
+            .add_systems(Update, (
+                on_gltf_ready,
+                check_asset_loading
+            ));
+
     }
 }
 
 #[derive(Resource, Default)]
 pub struct GameAssets {
-    pub weapon_model: Handle<Scene>,
+    pub weapon_asset: Handle<Gltf>,
     pub character_model: Handle<Scene>,
     pub assets_loaded: bool,
     pub loading_progress: f32,
+}
+
+#[derive(Resource, Default)]
+pub struct WeaponArm {
+    pub scene: Handle<Scene>,
+    pub idle: Handle<AnimationClip>,
+    pub walk: Handle<AnimationClip>,
+    pub fire: Handle<AnimationClip>,
+    pub reload: Handle<AnimationClip>,
+    pub reload_fast: Handle<AnimationClip>,
 }
 
 #[derive(Component)]
@@ -35,8 +50,10 @@ fn load_game_assets(
 ) {
     info!("Loading game assets...");
     
+    // Load Weapon Pack
+    game_assets.weapon_asset = asset_server.load("fpsview/fps_saiga_animations/scene.glb");
     // Load weapon model from fpsview
-    game_assets.weapon_model = asset_server.load("fpsview/fps_saiga_animations/scene.gltf#Scene0");
+    //game_assets.weapon_model = asset_server.load("fpsview/fps_saiga_animations/scene.gltf#Scene0");
     
     // For character, we'll load the base model (FBX will be converted to GLTF in a real scenario)
     // For now, let's use a placeholder or create a simple character representation
@@ -54,7 +71,7 @@ fn check_asset_loading(
         return;
     }
 
-    let weapon_state = asset_server.get_load_state(&game_assets.weapon_model);
+    let weapon_state = asset_server.get_load_state(&game_assets.weapon_asset);
     
     match weapon_state {
         Some(bevy::asset::LoadState::Loaded) => {
@@ -82,7 +99,57 @@ fn check_asset_loading(
 #[derive(Event)]
 pub struct AssetLoadingComplete;
 
-pub fn spawn_weapon_model(
+
+fn on_gltf_ready(
+    mut ev: EventReader<AssetLoadingComplete>,
+    gltfs: Res<Assets<Gltf>>,
+    game_assets: Res<GameAssets>,
+    mut weapon_arm_res: ResMut<WeaponArm>,
+) {
+    // wenn das event nicht getriggert wurde. einfach hier beenden
+    if ev.is_empty() { return; }
+
+    let Some(gltf) = gltfs.get(&game_assets.weapon_asset) else { return; };
+    ev.clear(); // event wurde getriggert, also löschen damit das nicht nochmal kommt
+
+    let scene = gltf
+        .named_scenes["Sketchfab_Scene"]
+        .clone();
+
+    let idle = gltf.named_animations.get("Armature|Saiga_Idle")
+        .cloned()
+        .or_else(|| gltf.animations.get(0).cloned())
+        .expect("Keine Idle-Animation gefunden");
+
+    let walk  = gltf.named_animations.get("Armature|Saiga_Walk").cloned()
+        .or_else(|| gltf.named_animations.get("Run").cloned())
+        .or_else(|| gltf.animations.get(1).cloned())
+        .expect("Keine Walk-Animation gefunden");
+
+    let fire = gltf.named_animations.get("Armature|Saiga_Fire").cloned()
+        .or_else(|| gltf.animations.get(2).cloned())
+        .expect("Keine Fire-Animation gefunden");
+    
+    let reload_fast = gltf.named_animations.get("Armature|Saiga_Reload_Fast").cloned()
+        .or_else(|| gltf.animations.get(3).cloned())
+        .expect("Keine Reload_Fast-Animation gefunden");
+
+    let reload = gltf.named_animations.get("Armature|Saiga_Reload_Full").cloned()
+        .or_else(|| gltf.animations.get(3).cloned())
+        .expect("Keine Reload-Animation gefunden");
+
+    *weapon_arm_res = WeaponArm { 
+        scene, 
+        idle,
+        walk,
+        fire,
+        reload_fast,
+        reload
+    };
+    //game_assets.assets_loaded = true;
+}
+
+/*pub fn spawn_weapon_model(
     commands: &mut Commands,
     game_assets: &GameAssets,
     position: Vec3,
@@ -92,7 +159,7 @@ pub fn spawn_weapon_model(
         Transform::from_translation(position),
         WeaponModel,
     )).id()
-}
+}*/
 
 pub fn spawn_character_model(
     commands: &mut Commands,

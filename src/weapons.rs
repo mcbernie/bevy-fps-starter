@@ -1,4 +1,6 @@
-use bevy::prelude::*;
+use std::{collections::VecDeque, time::Duration};
+
+use bevy::{prelude::*, scene::SceneInstanceReady};
 use avian3d::prelude::*;
 
 pub struct WeaponPlugin;
@@ -6,12 +8,16 @@ pub struct WeaponPlugin;
 impl Plugin for WeaponPlugin {
     fn build(&self, app: &mut App) {
         app
+            .init_resource::<WeaponAnimSet>()
             .add_systems(Startup, setup_weapon_system)
             .add_systems(Update, (
                 weapon_pickup_system,
                 weapon_usage_system,
-                update_weapon_sway,
+                //update_weapon_sway,
                 spawn_held_weapon_view,
+                on_scene_ready_mark_player,
+                start_idle_when_ready,
+                build_anim_graph,
             ));
     }
 }
@@ -74,6 +80,14 @@ impl Default for WeaponSway {
     }
 }
 
+#[derive(Component)]
+struct WeaponAnimRoot;      // Marker am Root der View-Model-Scene
+#[derive(Component)]
+struct WeaponAnimPlayer;    // Marker am echten AnimationPlayer-Entity
+
+
+
+
 fn setup_weapon_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -124,7 +138,7 @@ fn spawn_weapon_pickup(
     let _pickup_entity = if game_assets.assets_loaded {
         // Use actual weapon model for rifle (since we have the saiga model)
         match weapon_type {
-            WeaponType::Rifle => {
+            /*WeaponType::Rifle => {
                 commands.spawn((
                     SceneRoot(game_assets.weapon_model.clone()),
                     Transform::from_translation(position).with_scale(Vec3::splat(0.3)),
@@ -136,7 +150,7 @@ fn spawn_weapon_pickup(
                     },
                     crate::assets::WeaponModel,
                 )).id()
-            },
+            },*/
             _ => {
                 // For other weapons, use placeholder shapes
                 let (color, size) = match weapon_type {
@@ -347,6 +361,7 @@ fn update_weapon_sway(
 fn spawn_held_weapon_view(
     mut commands: Commands,
     game_assets: Res<crate::assets::GameAssets>,
+    weapon_arm_asset: Res<crate::assets::WeaponArm>,
     player_query: Query<(Entity, &PlayerInventory), (With<crate::fps_controller::FpsController>, Changed<PlayerInventory>)>,
     weapon_query: Query<&Weapon>,
     existing_view_weapons: Query<Entity, With<HeldWeaponView>>,
@@ -361,19 +376,23 @@ fn spawn_held_weapon_view(
         if let Some(weapon_entity) = inventory.held_weapon {
             if let Ok(weapon) = weapon_query.get(weapon_entity) {
                 if game_assets.assets_loaded {
+                    let weapon_asset = weapon_arm_asset.scene.clone();
                     // Spawn the weapon model in first-person view
                     let weapon_view_entity = commands.spawn((
-                        SceneRoot(game_assets.weapon_model.clone()),
-                        Transform::from_translation(Vec3::new(0.5, -0.3, -0.8))
-                            .with_scale(Vec3::splat(0.15)),
+                        SceneRoot(weapon_asset),
+                        Transform::from_translation(Vec3::new(0.2, -0.6, -0.2))
+                            .with_scale(Vec3::splat(1.0))
+                            .with_rotation(Quat::from_rotation_y(std::f32::consts::PI)),
                         WeaponSway::default(),
                         HeldWeaponView,
+                        WeaponAnimRoot,
+                        Name::new(format!("HeldWeaponView - {}", weapon.name)),
                     )).id();
 
                     // Make the weapon view a child of the player camera
                     commands.entity(player_entity).add_children(&[weapon_view_entity]);
                     
-                    info!("Spawned weapon view for {}", weapon.name);
+                    info!("Spawned weapon view for {}", weapon.name);   
                 }
             }
         }
@@ -386,4 +405,96 @@ pub struct HeldWeaponView;
 // Utility function to add weapon inventory to player
 pub fn add_weapon_inventory_to_player(commands: &mut Commands, player_entity: Entity) {
     commands.entity(player_entity).insert(PlayerInventory::default());
+}
+
+fn on_scene_ready_mark_player(
+    //mut ev: EventReader<SceneInstanceReady>,
+    roots: Query<Entity, (With<WeaponAnimRoot>, Without<WeaponAnimPlayer>)>,
+    children_q: Query<&Children>,
+    players_q: Query<Entity, With<AnimationPlayer>>,
+    mut commands: Commands,
+) {
+    for root in &roots {
+        if let Some(player_entity) = find_descendant_with::<AnimationPlayer>(root, &children_q, &players_q) {
+            commands.entity(player_entity).insert(WeaponAnimPlayer);
+        }
+    }
+}
+
+/// Suche im Subtree von `root` die erste Entity mit Komponente `T`
+fn find_descendant_with<T: Component>(
+    root: Entity,
+    children_q: &Query<&Children>,
+    want_q: &Query<Entity, With<T>>,
+) -> Option<Entity> {
+    let mut bfs: VecDeque<Entity> = VecDeque::from([root]); // <- explizit Entity
+    while let Some(e) = bfs.pop_front() {
+        if want_q.get(e).is_ok() {
+            return Some(e);
+        }
+        if let Ok(children) = children_q.get(e) {
+            // NICHT extend(); einfach pushen:
+            for child in children.iter() {
+                bfs.push_back(child);
+            }
+        }
+    }
+    None
+}
+
+fn start_idle_when_ready(
+    mut cmds: Commands,
+    mut q: Query<(Entity, &mut AnimationPlayer), Added<WeaponAnimPlayer>>,
+    anims: Res<WeaponAnimSet>,
+) {
+    if let Some(idle_animation) = anims.idle {
+        for (e, mut player) in &mut q {
+            let mut transitions = AnimationTransitions::new();
+            transitions.play(&mut player, idle_animation, Duration::ZERO).repeat();
+
+            cmds.entity(e)
+                .insert(AnimationGraphHandle(anims.graph.clone()))
+                .insert(transitions);
+        }
+    }
+}
+
+#[derive(Resource, Clone, Default)]
+pub struct WeaponAnimSet {
+    pub graph: Handle<AnimationGraph>,
+    pub idle: Option<AnimationNodeIndex>,
+    pub fire: Option<AnimationNodeIndex>,
+    pub walk: Option<AnimationNodeIndex>,
+    pub reload: Option<AnimationNodeIndex>,
+    pub reload_fast: Option<AnimationNodeIndex>,
+}
+
+// Beim Assets-Ready-Event:
+fn build_anim_graph(
+    weapon: Res<crate::assets::WeaponArm>, // enthält deine Clip-Handles
+    mut graphs: ResMut<Assets<AnimationGraph>>,
+    mut out: ResMut<WeaponAnimSet>,
+) {
+    // Reihenfolge festlegen -> zuordnen
+    let clip_order: Vec<Handle<AnimationClip>> = vec![
+        weapon.idle.clone(),
+        weapon.walk.clone(),
+        weapon.fire.clone(),
+        weapon.reload.clone(),
+        weapon.reload_fast.clone()
+    ];
+
+    let (graph, nodes) = AnimationGraph::from_clips(clip_order);
+    let graph_handle = graphs.add(graph);
+
+    let idle = Some(nodes[0]);
+    let walk = Some(nodes[1]);
+    let fire = Some(nodes[2]);
+    let reload = Some(nodes[3]);
+    let reload_fast = Some(nodes[4]);
+
+    *out = WeaponAnimSet { 
+        graph: graph_handle, 
+        idle, walk, fire, reload, reload_fast
+    };
 }

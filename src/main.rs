@@ -11,6 +11,7 @@ mod interaction;
 mod audio;
 mod assets;
 
+use bevy_egui::EguiPlugin;
 use fps_controller::FpsControllerPlugin;
 use lighting::LightingPlugin;
 use physics::PhysicsPlugin;
@@ -21,6 +22,8 @@ use weapons::WeaponPlugin;
 use interaction::InteractionPlugin;
 use audio::AudioPlugin;
 use assets::AssetLoadingPlugin;
+
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 fn main() {
     let mut app = App::new();
@@ -34,6 +37,8 @@ fn main() {
             }),
             ..default()
         }))
+        .add_plugins(EguiPlugin::default())
+        .add_plugins(WorldInspectorPlugin::new())
         // Diagnostics are included in DefaultPlugins in Bevy 0.16
         // Core game systems
         .add_plugins((
